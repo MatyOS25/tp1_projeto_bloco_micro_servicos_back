@@ -1,93 +1,79 @@
 package br.edu.infnet.projeto_bloco_micro_servicos.service;
 
-import br.edu.infnet.projeto_bloco_micro_servicos.model.TVShow;
-import org.springframework.stereotype.Service;
-import java.util.Optional;
-import java.util.stream.Collectors;
 import br.edu.infnet.projeto_bloco_micro_servicos.exception.ResourceNotFoundException;
+import br.edu.infnet.projeto_bloco_micro_servicos.model.TVShow;
+import br.edu.infnet.projeto_bloco_micro_servicos.model.TVShowHistory;
+import br.edu.infnet.projeto_bloco_micro_servicos.repository.TVShowHistoryRepository;
+import br.edu.infnet.projeto_bloco_micro_servicos.repository.TVShowRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
-
-import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class TVShowService {
-    private List<TVShow> tvShows = initValues();
 
-    private List<TVShow> initValues() {
-        List<TVShow> tvShows = new ArrayList<>();
-        tvShows.add(new TVShow(1, "Breaking Bad", "Drama", 5, 62));
-        tvShows.add(new TVShow(2, "Game of Thrones", "Fantasy", 8, 73));
-        tvShows.add(new TVShow(3, "The Office", "Comedy", 9, 201));
+    private final TVShowRepository tvShowRepository;
+    private final TVShowHistoryRepository tvShowHistoryRepository;
 
-        return tvShows;
+    @Autowired
+    public TVShowService(TVShowRepository tvShowRepository, TVShowHistoryRepository tvShowHistoryRepository) {
+        this.tvShowRepository = tvShowRepository;
+        this.tvShowHistoryRepository = tvShowHistoryRepository;
     }
 
-
-    public List<TVShow> getTVShows() {
-        return this.tvShows;
+    public List<TVShow> getAllTVShows() {
+        return tvShowRepository.findAll();
     }
 
-    public void addTVShow(TVShow tvShow) {
-        tvShows.add(tvShow);
-    }
-
-    //getByid
     public TVShow getTVShowById(int id) {
-        if (id <= 0) {
-            throw new ResourceNotFoundException("Invalid ID");
-        }
-        else {
-            Optional<TVShow> tvShow = tvShows.stream().filter(tv -> tv.getId() == id).findFirst();
-            if(tvShow.isEmpty()) {
-                throw new ResourceNotFoundException("TV Show not found");
-            }
-            return tvShow.get();
-        }
+        return tvShowRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("TV Show not found with id " + id));
     }
 
-    //filterByName
     public List<TVShow> filterTVShowByName(String name) {
-        if (name == null) {
-            throw new ResourceNotFoundException("Invalid name");
-        }
-        else {
-            return tvShows.stream().filter(tv -> tv.getTitle().contains(name)).collect(Collectors.toList());
-        }
+        return tvShowRepository.findByTitleContainingIgnoreCase(name);
     }
 
+    public TVShow addTVShow(TVShow tvShow) {
+        TVShow savedTVShow = tvShowRepository.save(tvShow);
+        logTVShowHistory(savedTVShow.getId(), "TV Show added: " + savedTVShow.getTitle());
+        return savedTVShow;
+    }
 
-    //update
     public TVShow updateTVShow(int id, TVShow tvShow) {
-        if (id <= 0) {
-            throw new ResourceNotFoundException("Invalid ID");
-        }
-        else {
-            Optional<TVShow> tvShowToUpdate = tvShows.stream().filter(tv -> tv.getId() == id).findFirst();
-            if(tvShowToUpdate.isEmpty()) {
-                throw new ResourceNotFoundException("TV Show not found");
-            }
-            tvShowToUpdate.get().setTitle(tvShow.getTitle());
-            tvShowToUpdate.get().setGenre(tvShow.getGenre());
-            tvShowToUpdate.get().setSeason(tvShow.getSeason());
-            tvShowToUpdate.get().setEpisode(tvShow.getEpisode());
-            return tvShowToUpdate.get();
-        }
+        TVShow existingTVShow = tvShowRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("TV Show not found with id " + id));
+
+        existingTVShow.setTitle(tvShow.getTitle());
+        existingTVShow.setGenre(tvShow.getGenre());
+        existingTVShow.setSeason(tvShow.getSeason());
+        existingTVShow.setEpisode(tvShow.getEpisode());
+
+        TVShow updatedTVShow = tvShowRepository.save(existingTVShow);
+        logTVShowHistory(updatedTVShow.getId(), "TV Show updated: " + updatedTVShow.getTitle());
+        return updatedTVShow;
     }
 
-    //delete
-    public TVShow deleteTVShow(int id) {
-        if (id <= 0) {
-            throw new ResourceNotFoundException("Invalid ID");
-        }
-        else {
-            Optional<TVShow> tvShowToDelete = tvShows.stream().filter(tv -> tv.getId() == id).findFirst();
-            if(tvShowToDelete.isEmpty()) {
-                throw new ResourceNotFoundException("TV Show not found");
-            }
-            tvShows.remove(tvShowToDelete.get());
-            return tvShowToDelete.get();
-        }
+    public void deleteTVShow(int id) {
+        TVShow tvShowToDelete = tvShowRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("TV Show not found with id " + id));
+
+        tvShowRepository.delete(tvShowToDelete);
+        logTVShowHistory(id, "TV Show deleted: " + tvShowToDelete.getTitle());
     }
 
+    public List<TVShowHistory> getTVShowHistory(int tvShowId) {
+        return tvShowHistoryRepository.findByTvShowIdOrderByModifiedDateDesc(tvShowId);
+    }
+
+    private void logTVShowHistory(int tvShowId, String action) {
+        TVShowHistory history = new TVShowHistory();
+        history.setTvShowId(tvShowId);
+        history.setAction(action);
+        history.setModifiedDate(LocalDateTime.now());
+        tvShowHistoryRepository.save(history);
+    }
 }

@@ -28,7 +28,7 @@ public class TVShowController {
     @GetMapping
     public ResponseEntity<List<TVShow>> getAll(@RequestParam(required = false) Optional<String> name) {
         if (name.isEmpty()) {
-            return ResponseEntity.ok(tvShowService.getTVShows());
+            return ResponseEntity.ok(tvShowService.getAllTVShows());
         }
         else{
             List<TVShow> tvShows = tvShowService.filterTVShowByName(name.get());
